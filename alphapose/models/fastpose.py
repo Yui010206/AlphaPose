@@ -51,6 +51,7 @@ class FastPose(nn.Module):
     def forward(self, x):
         out = self.preact(x)
         out = self.suffle1(out)
+        
         out = self.duc1(out)
         out = self.duc2(out)
 
