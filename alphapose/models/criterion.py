@@ -59,6 +59,24 @@ class L1JointRegression(nn.Module):
     def forward(self, preds, *args):
         gt_joints = args[0]
         gt_joints_vis = args[1]
+        #print("pred:",preds.shape)
+        #[48*10,133,64,48]
+        #print("gt_joints:",gt_joints.shape)
+        #[48*10,266]
+        #print("gt_joints_vis:",gt_joints_vis.shape)
+        #[48*10,266]
+        # gt_joints_vis_body = torch.zeros_like(gt_joints_vis)
+        # gt_joints_vis_hand = torch.zeros_like(gt_joints_vis)
+        # gt_joints_vis_face = torch.zeros_like(gt_joints_vis)
+        # gt_joints_vis_body[:, :46] = gt_joints_vis[:, :46]
+        # gt_joints_vis_face[:, 46:-84] = gt_joints_vis[:, 46:-84]
+        # gt_joints_vis_hand[:, -84:] = gt_joints_vis[:, -84:]
+
+        # gt_joints_vis_cat = torch.cat((gt_joints_vis_body,gt_joints_vis_face,gt_joints_vis_hand),dim=1)
+        # gt_joints_cat = torch.cat((gt_joints,gt_joints,gt_joints),dim=1)
+
+        # gt_joints_vis[:,:23*2] = gt_joints_vis[:,:23*2]*2
+        # gt_joints_vis[:,23*2:(-42*2)] = gt_joints_vis[:,23*2:(-42*2)] * 0.5
 
         if self.output_3d:
             num_joints = int(gt_joints_vis.shape[1] / 3)
@@ -68,8 +86,14 @@ class L1JointRegression(nn.Module):
         hm_height = preds.shape[-2]
         hm_depth = preds.shape[-3] // num_joints if self.output_3d else 1
 
+        # num_joints= num_joints*3
+
         pred_jts, pred_scores = _integral_tensor(
             preds, num_joints, self.output_3d, hm_width, hm_height, hm_depth, integral_operation=self.integral_operation, norm_type=self.norm_type)
+        #print("pred_jts:",pred_jts.shape)
+        #[48*10,266]
+        #print("pred_scores:",pred_scores.shape)
+        #[48*10,133,1]
 
         _assert_no_grad(gt_joints)
         _assert_no_grad(gt_joints_vis)
@@ -83,15 +107,18 @@ def _assert_no_grad(tensor):
 
 
 def weighted_l1_loss(input, scores, target, weights, size_average):
+
     out = torch.abs(input - target)
     out = out * weights
-    out_of_scores = torch.abs(scores - torch.ones_like(scores))
-    out_of_scores = out_of_scores.reshape((out_of_scores.shape[0], -1))
-    out_of_scores = out_of_scores * weights[:, 0::2]
+    # out_of_scores = torch.abs(scores - torch.ones_like(scores))
+    # out_of_scores = out_of_scores.reshape((out_of_scores.shape[0], -1))
+    # out_of_scores = out_of_scores * weights[:, 0::2]
     if size_average:
-        return (out.sum() + out_of_scores.sum()) / len(input)
+        #return (out.sum() + out_of_scores.sum()) / len(input)
+        return out.sum()/len(input)
     else:
-        return (out.sum() + out_of_scores.sum())
+        #return (out.sum() + out_of_scores.sum())
+        return out.sum()
 
 
 LOSS.register_module(torch.nn.MSELoss)
