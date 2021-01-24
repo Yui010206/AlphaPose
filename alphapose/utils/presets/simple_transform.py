@@ -5,7 +5,7 @@
 
 import platform
 import random
-
+import copy
 import cv2
 import numpy as np
 import torch
@@ -170,6 +170,7 @@ class SimpleTransform(object):
             target_weight[:26, :] = target_weight[:26, :] * 2
         elif num_joints == 133:
             target_weight[:23, :] = target_weight[:23, :] * 2
+            #target_weight[23:-42, :] = target_weight[23:-42, :] * 0.5
         
         if source == 'frei' or source == 'partX' or source == 'OneHand' or source == 'hand_labels_synth' \
         or source == 'hand143_panopticdb' or source == 'RHD_published_v2' or source == 'interhand':
@@ -188,6 +189,9 @@ class SimpleTransform(object):
 
     def __call__(self, src, label, source=None):
         bbox = list(label['bbox'])
+        face_bbox = list(label['face_bbox'])
+        lefthand_bbox = list(label['lefthand_bbox'])
+        righthand_bbox = list(label['righthand_bbox'])
         gt_joints = label['joints_3d']
 
         imgwidth, imght = label['width'], label['height']
@@ -201,6 +205,9 @@ class SimpleTransform(object):
 
         if self._add_dpg and self._train:
             bbox = addDPG(bbox, imgwidth, imght)
+            #face_bbox = addDPG(face_bbox, imgwidth, imght)
+            #lefthand_bbox = addDPG(lefthand_bbox, imgwidth, imght)
+            #righthand_bbox = addDPG(righthand_bbox, imgwidth, imght)
 
         xmin, ymin, xmax, ymax = bbox
         center, scale = _box_to_center_scale(
@@ -219,8 +226,14 @@ class SimpleTransform(object):
         if self._train:
             sf = self._scale_factor
             scale = scale * np.clip(np.random.randn() * sf + 1, 1 - sf, 1 + sf)
+            #scale_f = scale_f * np.clip(np.random.randn() * sf + 1, 1 - sf, 1 + sf)
+            #scale_rh = scale_rh * np.clip(np.random.randn() * sf + 1, 1 - sf, 1 + sf)
+            #scale_lh = scale_lh * np.clip(np.random.randn() * sf + 1, 1 - sf, 1 + sf)
         else:
             scale = scale * 1.0
+            #scale_f = scale_f * 1.0
+            #scale_rh = scale_rh * 1.0
+            #scale_lh = scale_lh * 1.0
 
         # rotation
         if self._train:
@@ -251,20 +264,84 @@ class SimpleTransform(object):
             if joints[i, 0, 1] > 0.0:
                 joints[i, 0:2, 0] = affine_transform(joints[i, 0:2, 0], trans)
 
+        # -----------------------------------------------------
+        # get face/ hand box through wholebody joints
+        # deepcopy
+        face_joints = copy.deepcopy(joints[23:-42,:,:])
+        lefthand_joints = copy.deepcopy(joints[-42:-21,:,:])
+        righthand_joints = copy.deepcopy(joints[-21:,:,:])
+
+        xmin_f, ymin_f, xmax_f, ymax_f = self.get_xyxy(face_joints)
+        center_f, scale_f = _box_to_center_scale(
+            xmin_f, ymin_f, xmax_f - xmin_f, ymax_f - ymin_f, self._aspect_ratio)
+
+        xmin_lh, ymin_lh, xmax_lh, ymax_lh = self.get_xyxy(lefthand_joints)
+        center_lh, scale_lh = _box_to_center_scale(
+            xmin_lh, ymin_lh, xmax_lh - xmin_lh, ymax_lh - ymin_lh, self._aspect_ratio)
+
+        xmin_rh, ymin_rh, xmax_rh, ymax_rh = self.get_xyxy(righthand_joints)
+        center_rh, scale_rh = _box_to_center_scale(
+            xmin_rh, ymin_rh, xmax_rh - xmin_rh, ymax_rh - ymin_rh, self._aspect_ratio)
+
+        # -----------------------------------------------------
+        # Affine transformation for face/hand box
+        trans_f = get_affine_transform(center_f, scale_f, 0, [inp_w, inp_h])
+        # img = cv2.warpAffine(src, trans_f, (int(inp_w), int(inp_h)), flags=cv2.INTER_LINEAR)
+        for i in range(68):
+            if face_joints[i, 0, 1] > 0.0:
+                face_joints[i, 0:2, 0] = affine_transform(face_joints[i, 0:2, 0], trans_f)
+
+        trans_lh = get_affine_transform(center_lh, scale_lh, 0, [inp_w, inp_h])
+        # img = cv2.warpAffine(src, trans_lf, (int(inp_w), int(inp_h)), flags=cv2.INTER_LINEAR)
+        for i in range(21):
+            if lefthand_joints[i, 0, 1] > 0.0:
+                lefthand_joints[i, 0:2, 0] = affine_transform(lefthand_joints[i, 0:2, 0], trans_lh)
+
+        trans_rh = get_affine_transform(center_rh, scale_rh, 0, [inp_w, inp_h])
+        # img = cv2.warpAffine(src, trans_lf, (int(inp_w), int(inp_h)), flags=cv2.INTER_LINEAR)
+        for i in range(21):
+            if righthand_joints[i, 0, 1] > 0.0:
+                righthand_joints[i, 0:2, 0] = affine_transform(righthand_joints[i, 0:2, 0], trans_rh)
+
+        # -----------------------------------------------------
+
         # generate training targets
+        #joints = joints + face_joints + lefthand_joints + righthand_joints
         if self._loss_type == 'MSELoss':
             target, target_weight = self._target_generator(joints, self.num_joints)
         elif 'JointRegression' in self._loss_type:
             target, target_weight = self._integral_target_generator(joints, self.num_joints, inp_h, inp_w, source)
+            target_f, target_weight_f = self._integral_target_generator(face_joints, 68, inp_h, inp_w)
+            target_lh, target_weight_lh = self._integral_target_generator(lefthand_joints, 21, inp_h, inp_w)
+            target_rh, target_weight_rh = self._integral_target_generator(righthand_joints, 21, inp_h, inp_w)
 
         bbox = _center_scale_to_box(center, scale)
+        face_bbox = _center_scale_to_box(center_f, scale_f)
+        lefthand_bbox = _center_scale_to_box(center_lh, scale_lh)
+        righthand_bbox = _center_scale_to_box(center_rh, scale_rh)
+
+        all_boxes = [bbox,lefthand_bbox,righthand_bbox,face_bbox]
+        target_cat = np.concatenate((target,target_lh,target_rh,target_f),axis=0)
+        target_weight_cat = np.concatenate((target_weight,target_weight_lh,target_weight_rh,target_weight_f),axis=0)
 
         img = im_to_torch(img)
         img[0].add_(-0.406)
         img[1].add_(-0.457)
         img[2].add_(-0.480)
 
-        return img, torch.from_numpy(target), torch.from_numpy(target_weight), torch.Tensor(bbox)
+        return img, torch.from_numpy(target_cat), torch.from_numpy(target_weight_cat), torch.Tensor(all_boxes)
+
+    def get_xyxy(self, joints):
+        joints = np.array(joints)
+        x = joints[:,0,0]
+        y = joints[:,1,0]
+        x_min = float(np.min(x))
+        x_max = float(np.max(x))
+        y_min = float(np.min(y))
+        y_max = float(np.max(y))
+
+        return x_min, y_min, x_max, y_max
+
 
     def half_body_transform(self, joints, joints_vis):
         upper_joints = []
