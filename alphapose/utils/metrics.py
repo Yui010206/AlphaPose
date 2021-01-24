@@ -11,9 +11,12 @@ import torch
 import torch.nn.functional as F
 from .transforms import get_max_pred_batch, _integral_tensor
 
-from pycocotools.coco import COCO
-from pycocotools.cocoeval import COCOeval
+#from pycocotools.coco import COCO
+#from pycocotools.cocoeval import COCOeval
+from xtcocotools.coco import COCO
+from xtcocotools.cocoeval import COCOeval
 
+import torch.cuda.comm
 
 class DataLogger(object):
     """Average data logger."""
@@ -86,6 +89,76 @@ def evaluate_mAP(res_file, ann_type='bbox', ann_file='./data/coco/annotations/pe
             pass
 
     # ann_file = os.path.join('./data/coco/annotations/', ann_file)
+    sigmas_body = [0.026, 0.025, 0.025, 0.035, 0.035, 0.079, 0.079, 0.072, 0.072, 0.062, 0.062, 0.107, 0.107, 0.087,0.087, 0.089, 0.089]
+    sigmas_foot = [0.068, 0.066, 0.066, 0.092, 0.094, 0.094]
+    sigmas_face = [0.042, 0.043, 0.044, 0.043, 0.040, 0.035, 0.031, 0.025, 0.020, 0.023, 0.029, 0.032, 0.037, 0.038, 0.043,0.041, 0.045, 0.013, 0.012, 0.011, 0.011, 0.012, 0.012, 0.011, 0.011, 0.013, 0.015, 0.009, 0.007, 0.007,0.007, 0.012, 0.009, 0.008, 0.016, 0.010, 0.017, 0.011, 0.009, 0.011, 0.009, 0.007, 0.013, 0.008, 0.011,0.012, 0.010, 0.034, 0.008, 0.008, 0.009, 0.008, 0.008, 0.007, 0.010, 0.008, 0.009, 0.009, 0.009, 0.007, 0.007, 0.008, 0.011, 0.008, 0.008, 0.008, 0.01, 0.008]
+    sigmas_lefthand = [0.029, 0.022, 0.035, 0.037, 0.047, 0.026, 0.025, 0.024, 0.035, 0.018, 0.024, 0.022, 0.026, 0.017,0.021, 0.021, 0.032, 0.02, 0.019, 0.022, 0.031]
+    sigmas_righthand = [0.029, 0.022, 0.035, 0.037, 0.047, 0.026, 0.025, 0.024, 0.035, 0.018, 0.024, 0.022, 0.026, 0.017, 0.021, 0.021, 0.032, 0.02, 0.019, 0.022, 0.031]
+
+    sigmas_wholebody = sigmas_body + sigmas_foot + sigmas_face + sigmas_lefthand + sigmas_righthand
+    
+    # if silence:
+    #     nullwrite = NullWriter()
+    #     oldstdout = sys.stdout
+    #     sys.stdout = nullwrite  # disable output
+
+    # cocoGt = COCO(ann_file)
+    # cocoDt = cocoGt.loadRes(res_file)
+    # res = {}
+    # #cocoEval = COCOeval(cocoGt, cocoDt, ann_type)
+    # cocoEval = COCOeval(cocoGt, cocoDt, 'keypoints_body', np.array(sigmas_body+sigmas_foot),use_area=True)
+    # cocoEval.evaluate()
+    # cocoEval.accumulate()
+    # cocoEval.summarize()
+    # res['body'] = cocoEval.stats
+    # # cocoEval = COCOeval(cocoGt, cocoDt, 'keypoints_foot', np.array(sigmas_foot), use_area=True)
+    # # cocoEval.evaluate()
+    # # cocoEval.accumulate()
+    # # cocoEval.summarize()
+
+    # cocoEval = COCOeval(cocoGt, cocoDt, 'keypoints_face', np.array(sigmas_face), use_area=True)
+    # cocoEval.evaluate()
+    # cocoEval.accumulate()
+    # cocoEval.summarize()
+    # res['face'] = cocoEval.stats
+
+    # cocoEval = COCOeval(cocoGt, cocoDt, 'keypoints_lefthand', np.array(sigmas_lefthand), use_area=True)
+    # cocoEval.evaluate()
+    # cocoEval.accumulate()
+    # cocoEval.summarize()
+    # res['lefthand'] = cocoEval.stats
+
+    # cocoEval = COCOeval(cocoGt, cocoDt, 'keypoints_righthand', np.array(sigmas_righthand), use_area=True)
+    # cocoEval.evaluate()
+    # cocoEval.accumulate()
+    # cocoEval.summarize()
+    # res['righthand'] = cocoEval.stats
+
+    # cocoEval = COCOeval(cocoGt, cocoDt, 'keypoints_hand', np.array(sigmas_lefthand+sigmas_righthand), use_area=True)
+    # cocoEval.evaluate()
+    # cocoEval.accumulate()
+    # cocoEval.summarize()
+    # res['hand'] = cocoEval.stats
+
+    # cocoEval = COCOeval(cocoGt, cocoDt, 'keypoints_wholebody', np.array(sigmas_wholebody), use_area=True)
+    # cocoEval.evaluate()
+    # cocoEval.accumulate()
+    # cocoEval.summarize()
+    # res['wholebody'] = cocoEval.stats
+
+
+    # if silence:
+    #     sys.stdout = oldstdout  # enable output
+    # #print('cocoeval:',cocoEval.stats[0])
+    # #if isinstance(cocoEval.stats[0], dict):
+    #     # stats_names = ['AP', 'Ap .5', 'AP .75', 'AP (M)', 'AP (L)',
+    #     #                'AR', 'AR .5', 'AR .75', 'AR (M)', 'AR (L)']
+    # parts = ['body', 'face', 'hand', 'lefthand','righthand','wholebody']
+    #     #parts = ['keypoints_body','keypoints_foot','keypoints_face','keypoints_lefthand','keypoints_righthand','keypoints_wholebody']
+    # info = {}
+    # for i, part in enumerate(parts):
+    #     info[part] = res[part][0]
+    # return info
 
     if silence:
         nullwrite = NullWriter()
@@ -99,10 +172,9 @@ def evaluate_mAP(res_file, ann_type='bbox', ann_file='./data/coco/annotations/pe
     cocoEval.evaluate()
     cocoEval.accumulate()
     cocoEval.summarize()
-
     if silence:
         sys.stdout = oldstdout  # enable output
-    
+
     if isinstance(cocoEval.stats[0], dict):
         stats_names = ['AP', 'Ap .5', 'AP .75', 'AP (M)', 'AP (L)',
                        'AR', 'AR .5', 'AR .75', 'AR (M)', 'AR (L)']
@@ -112,6 +184,7 @@ def evaluate_mAP(res_file, ann_type='bbox', ann_file='./data/coco/annotations/pe
         for i, part in enumerate(parts):
             info[part] = cocoEval.stats[i][part][0]
         return info
+        
     else:
         stats_names = ['AP', 'Ap .5', 'AP .75', 'AP (M)', 'AP (L)',
                        'AR', 'AR .5', 'AR .75', 'AR (M)', 'AR (L)']
@@ -119,6 +192,14 @@ def evaluate_mAP(res_file, ann_type='bbox', ann_file='./data/coco/annotations/pe
         for ind, name in enumerate(stats_names):
             info_str[name] = cocoEval.stats[ind]
         return info_str['AP']
+
+    # else:
+    #     stats_names = ['AP', 'Ap .5', 'AP .75', 'AP (M)', 'AP (L)',
+    #                    'AR', 'AR .5', 'AR .75', 'AR (M)', 'AR (L)']
+    #     info_str = {}
+    #     for ind, name in enumerate(stats_names):
+    #         info_str[name] = cocoEval.stats[ind]
+    #     return info_str['AP']
 
 
 def calc_accuracy(preds, labels):
@@ -156,6 +237,7 @@ def calc_accuracy(preds, labels):
 def calc_integral_accuracy(preds, labels, label_masks, output_3d=False, norm_type='softmax'):
     """Calculate integral coordinates accuracy."""
     def integral_op(hm_1d):
+
         hm_1d = hm_1d * torch.cuda.comm.broadcast(torch.arange(hm_1d.shape[-1]).type(
             torch.cuda.FloatTensor), devices=[hm_1d.device.index])[0]
         return hm_1d

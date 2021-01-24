@@ -629,7 +629,9 @@ def heatmap_to_coord_simple_regress(preds, bbox, hm_shape, norm_type, hms_flip=N
 
     preds = np.zeros_like(coords)
     # transform bbox to scale
+    # batch box?
     xmin, ymin, xmax, ymax = bbox
+
     w = xmax - xmin
     h = ymax - ymin
     center = np.array([xmin + w * 0.5, ymin + h * 0.5])
@@ -766,7 +768,6 @@ def get_affine_transform(center,
                          inv=0):
     if not isinstance(scale, np.ndarray) and not isinstance(scale, list):
         scale = np.array([scale, scale])
-
     scale_tmp = scale
     src_w = scale_tmp[0]
     dst_w = output_size[0]
@@ -808,3 +809,50 @@ def get_func_heatmap_to_coord(cfg):
             return heatmap_to_coord_simple_regress
     else:
         raise NotImplementedError
+
+# def get_xyxy(x,y):
+#     # if isinstance(joints,list):
+#     #     joints = np.array(joints)
+#     # x = joints[:,:,0]
+#     # y = joints[:,:,1]
+#     x_min = float(np.min(x),dim=1)
+#     x_max = float(np.max(x),dim=1)
+#     y_min = float(np.min(y),dim=1)
+#     y_max = float(np.max(y),dim=1)
+
+#     return x_min,y_min,x_max,y_max
+# def get_box(x_min,y_min,x_max,y_max):
+#     assert x_min.shape==y_max.shape
+#     box_num = x_min.shape[0]
+#     boxes = []
+#     for i in range(box_num):
+#         boxes.append([x_min[i].tolist(),y_min[i].tolist(),x_max[i].tolist(),y_max[i].tolist()])
+#     return torch.tensor(boxes)
+
+def get_box_for_align(x,y, scale=1.25):
+    x_min = torch.min(x,dim=1)[0]
+    x_max = torch.max(x,dim=1)[0]
+    y_min = torch.min(y,dim=1)[0]
+    y_max = torch.max(y,dim=1)[0]
+    center_x = (x_min + x_max)/2
+    center_y = (y_min + y_max)/2
+    width = (x_max - x_min)*scale
+    height = (y_max - y_min)*scale
+
+    crop_x1 = (center_x - width/2)
+    crop_y1 = (center_y - height/2)
+    crop_x2 = (center_x + width/2)
+    crop_y2 = (center_y + height/2)
+    batch = x_max.shape[0]
+    boxes = []
+    for i in range(batch):
+        boxes.append([crop_x1[i].cpu().tolist(),crop_y1[i].cpu().tolist(),crop_x2[i].cpu().tolist(),crop_y2[i].cpu().tolist()])
+    return torch.tensor(boxes)
+
+def integral_op(hm_1d):
+        if hm_1d.device.index is not None:
+            hm_1d = hm_1d * torch.cuda.comm.broadcast(torch.arange(hm_1d.shape[-1]).type(
+                torch.cuda.FloatTensor), devices=[hm_1d.device.index])[0]
+        else:
+            hm_1d = hm_1d * torch.arange(hm_1d.shape[-1]).type(torch.FloatTensor)
+        return hm_1d
