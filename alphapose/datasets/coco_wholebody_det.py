@@ -68,7 +68,7 @@ class coco_wholebody_det(data.Dataset):
             img_id = int(img_id)
         else:
             img_id = det_res['image_id']
-        img_path = '/DATA1/Benchmark/coco/val2017/%012d.jpg' % img_id
+        img_path = '/ssd3/Benchmark/coco/val2017/%012d.jpg' % img_id
 
         # Load image
         image = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB) #scipy.misc.imread(img_path, mode='RGB')
@@ -83,7 +83,8 @@ class coco_wholebody_det(data.Dataset):
         return len(self._det_json)
 
     def write_coco_json(self, det_file):
-        from pycocotools.coco import COCO
+        from xtcocotools.coco import COCO
+        # from pycocotools.coco import COCO
         import pathlib
 
         _coco = COCO(self._ann_file)
@@ -92,7 +93,7 @@ class coco_wholebody_det(data.Dataset):
         dets = []
         for entry in tqdm(_coco.loadImgs(image_ids)):
             abs_path = os.path.join(
-                '/DATA1/Benchmark/coco', self._img_prefix, entry['file_name'])
+                '/ssd3/Benchmark/coco', self._img_prefix, entry['file_name'])
             det = det_model.detect_one_img(abs_path)
             if det:
                 dets += det

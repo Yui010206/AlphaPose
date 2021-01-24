@@ -62,7 +62,7 @@ class coco_wholebody(CustomDataset):
         image_ids = sorted(_coco.getImgIds())
         for entry in _coco.loadImgs(image_ids):
             dirname, filename = entry['coco_url'].split('/')[-2:]
-            abs_path = os.path.join('/DATA1/Benchmark/coco', dirname, filename)
+            abs_path = os.path.join('/ssd3/Benchmark/coco', dirname, filename)
             if not os.path.exists(abs_path):
                 raise IOError('Image: {} not exists.'.format(abs_path))
             label = self._check_load_keypoints(_coco, entry)
@@ -89,6 +89,8 @@ class coco_wholebody(CustomDataset):
             obj['keypoints'].extend(obj['face_kpts'])
             obj['keypoints'].extend(obj['lefthand_kpts'])
             obj['keypoints'].extend(obj['righthand_kpts'])
+
+            #'face_box', 'lefthand_box', 'righthand_box'
             contiguous_cid = self.json_id_to_contiguous[obj['category_id']]
             if contiguous_cid >= self.num_class:
                 # not class of interest
@@ -97,10 +99,19 @@ class coco_wholebody(CustomDataset):
                 continue
             # convert from (x, y, w, h) to (xmin, ymin, xmax, ymax) and clip bound
             xmin, ymin, xmax, ymax = bbox_clip_xyxy(bbox_xywh_to_xyxy(obj['bbox']), width, height)
+            xmin_f, ymin_f, xmax_f, ymax_f = bbox_clip_xyxy(bbox_xywh_to_xyxy(obj['face_box']), width, height)
+            xmin_lh, ymin_lh, xmax_lh, ymax_lh = bbox_clip_xyxy(bbox_xywh_to_xyxy(obj['lefthand_box']), width, height)
+            xmin_rh, ymin_rh, xmax_rh, ymax_rh = bbox_clip_xyxy(bbox_xywh_to_xyxy(obj['righthand_box']), width, height)
             # require non-zero box area
             #if obj['area'] <= 0 or xmax <= xmin or ymax <= ymin:
             if (xmax-xmin)*(ymax-ymin) <= 0 or xmax <= xmin or ymax <= ymin:
                 continue
+            # if (xmax_f-xmin_f)*(ymax_f-ymin_f) <= 0 or xmax_f <= xmin_f or ymax_f <= ymin_f:
+            #     continue
+            # if (xmax_lh-xmin_lh)*(ymax_lh-ymin_lh) <= 0 or xmax_lh <= xmin_lh or ymax_lh <= ymin_lh:
+            #     continue
+            # if (xmax_rh-xmin_rh)*(ymax_rh-ymin_rh) <= 0 or xmax_rh <= xmin_rh or ymax_rh <= ymin_rh:
+            #     continue
             if 'num_keypoints' in obj and obj['num_keypoints'] == 0:
                 continue
             # joints 3d: (num_joints, 3, 2); 3 is for x, y, z; 2 is for position, visibility
@@ -130,6 +141,9 @@ class coco_wholebody(CustomDataset):
 
             valid_objs.append({
                 'bbox': (xmin, ymin, xmax, ymax),
+                'face_bbox': (xmin_f, ymin_f, xmax_f, ymax_f),
+                'lefthand_bbox': (xmin_lh, ymin_lh, xmax_lh, ymax_lh),
+                'righthand_bbox': (xmin_rh, ymin_rh, xmax_rh, ymax_rh),
                 'width': width,
                 'height': height,
                 'joints_3d': joints_3d
@@ -140,6 +154,9 @@ class coco_wholebody(CustomDataset):
                 # dummy invalid labels if no valid objects are found
                 valid_objs.append({
                     'bbox': np.array([-1, -1, 0, 0]),
+                    'face_bbox': np.array([-1, -1, 0, 0]),
+                    'lefthand_bbox': np.array([-1, -1, 0, 0]),
+                    'righthand_bbox': np.array([-1, -1, 0, 0]),
                     'width': width,
                     'height': height,
                     'joints_3d': np.zeros((self.num_joints, 2, 2), dtype=np.float32)
